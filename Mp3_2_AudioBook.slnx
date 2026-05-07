@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="AudioConverter.cs" />
+  </Folder>
+  <Project Path="Mp3_2_AudioBook.csproj" />
+</Solution>
