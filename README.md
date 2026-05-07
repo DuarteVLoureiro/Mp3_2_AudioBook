@@ -1,6 +1,6 @@
 # MP3 to AudioBook Converter
 
-A lightweight Windows desktop tool that converts MP3 files to M4A format, recognised by devices (iPhone, iPad, etc.) as an audiobook in your library.
+A lightweight Windows desktop tool that converts MP3 files to M4A format for audiobooks.
 
 ## Features
 
@@ -12,7 +12,7 @@ A lightweight Windows desktop tool that converts MP3 files to M4A format, recogn
 
 ## Requirements
 
-- Windows 10 or later
+- Windows 7 or later
 - [.NET 8.0 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
 - NAudio (included via NuGet, no manual install needed)
 
