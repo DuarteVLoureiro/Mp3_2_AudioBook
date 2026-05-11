@@ -38,7 +38,7 @@ namespace Mp3_2_AudioBook
             SetupButtons();      // All buttons
             SetupProgressArea(); // Progress bar + status label
             SetupFileLabel();    // lblFileName (depends on lblDrop, so comes after)
-            SetupBitrateMenu();
+            SetupMenuButtons();
         }
 
         private void SetupWindow()
@@ -81,10 +81,12 @@ namespace Mp3_2_AudioBook
             lblStatus.Visible = false;
             lblFileName.Text = string.Empty;
             lblDrop.Text = "Drag and drop files here";
+            lblDrop.Visible = true;
             selectedFilePath = null;
             btnSelectFile.Visible = true;
             btnCancel.Visible = false;
             btnConvert.Visible = false;
+            mnuShowMetadata.Enabled = false;
         }
         private void SetupButtons()
         {
@@ -97,6 +99,7 @@ namespace Mp3_2_AudioBook
             mnuOpen.Click += SelectFile_Click;
             mnuEncoders.Click += mnuEncoders_Click;
             mnuExit.Click += (s, e) => Application.Exit(); // Simple one-line exit
+            mnuShowMetadata.Click += MnuShowMetadata_click;
         }
         private void ConfigureButtonStart(Button btn, int width, int height, int x, int y, string text, Boolean visibility = false)
         {
@@ -115,14 +118,16 @@ namespace Mp3_2_AudioBook
 
             lblStatus.Visible = false;
             lblStatus.Size = new Size(DropZoneWidth, 20);
-            lblStatus.Location = new Point(CenterX - DropZoneWidth / 2, 310);
-            lblStatus.TextAlign = ContentAlignment.MiddleCenter;
+            //lblStatus.Location = new Point(CenterX - DropZoneWidth / 2, 310);
+            lblStatus.Location = new Point(CenterX - DropZoneWidth / 2, 192);
+            lblStatus.TextAlign = ContentAlignment.MiddleLeft;
             lblStatus.Text = string.Empty;
         }
-        private void SetupBitrateMenu()
+        private void SetupMenuButtons()
         {
             foreach (var (label, value) in BitrateOptions)
             {
+                // Setup bitrate Options
                 ToolStripMenuItem item = new ToolStripMenuItem(label);
                 item.Tag = value;
                 item.CheckOnClick = true;
@@ -130,6 +135,10 @@ namespace Mp3_2_AudioBook
                 mnuBitrate.DropDownItems.Add(item);
             }
             ((ToolStripMenuItem)mnuBitrate.DropDownItems[DefaultBitrateIndex]).Checked = true; // Default
+
+            // Setup Metadata menu
+            mnuShowMetadata.Enabled = false;
+            mnuShowMetadata.ToolTipText = "Select file to enable";
         }
         private void LblDrop_Paint(object sender, PaintEventArgs e)
         {
@@ -176,16 +185,16 @@ namespace Mp3_2_AudioBook
             }
             return fileName;
         }
-
         private void HandleFileSelected(string file)
         {
             if (string.IsNullOrEmpty(file)) return;
             selectedFilePath = file;
-            lblDrop.Text = "File loaded ready to convert";
+            lblDrop.Text = "File is ready to convert";
             lblFileName.Text = ProcessFileName(file, 30);
             btnSelectFile.Visible = false;
             btnConvert.Visible = true;
             btnCancel.Visible = true;
+            mnuShowMetadata.Enabled = true;
         }
         private void SelectFile_Click(object sender, EventArgs e)
         {
@@ -261,6 +270,7 @@ namespace Mp3_2_AudioBook
                 btnConvert.Enabled = true;
                 cancellationTokenSource?.Dispose();
                 cancellationTokenSource = null;
+                resetView();
             }
         }
         private void BitrateItem_Click(object sender, EventArgs e)
@@ -274,13 +284,45 @@ namespace Mp3_2_AudioBook
             clickedItem.Checked = true;
             selectedBitrate = (int)clickedItem.Tag;
         }
+        private void MnuShowMetadata_click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(selectedFilePath))
+            {
+                MessageBox.Show("First select a MP3 file.", "No file selected", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            try
+            {
+                var metadata = MetadataHandler.ReadMetadata(selectedFilePath);
+                string info = $"Title: {metadata.Title}\n" +
+                    $"Author: {metadata.Author}\n" +
+                    $"Year: {metadata.ReleaseYear}\n";
 
+                info += metadata.Cover != null ? "Contains Cover Art" : "No Cover Art ";
+                info += $"\n Number of Chapters: {metadata.Chapters.Count}\n\n";
+                if (metadata.Chapters.Count > 0)
+                {
+                    info += "Chapter List:\n";
+                    foreach (var chapter in metadata.Chapters)
+                    {
+                        TimeSpan start = TimeSpan.FromMilliseconds(chapter.StartTime);
+                        TimeSpan end = TimeSpan.FromMilliseconds(chapter.EndTime);
+                        info += $"  {chapter.Title}: {start:hh\\:mm\\:ss} - {end:hh\\:mm\\:ss}\n";
+                    }
+                }
+                MessageBox.Show(info, "File Metadata", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error reading metadata: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
         private IProgress<int> progressBarReporting()
         {
             progressBar.Visible = true;
             progressBar.Value = 0;
             lblStatus.Visible = true;
-            lblStatus.Text = "Converting... 0%";
+            lblStatus.Text = "Converting...0%";
             lblDrop.Visible = false;
             lblDrop.Text = string.Empty;
             lblFileName .Visible = false;

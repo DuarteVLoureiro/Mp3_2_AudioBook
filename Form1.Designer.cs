@@ -45,6 +45,7 @@
             mnuHelp = new ToolStripMenuItem();
             mnuAbout = new ToolStripMenuItem();
             mnuEncoders = new ToolStripMenuItem();
+            mnuShowMetadata = new ToolStripMenuItem();
             menuStrip1.SuspendLayout();
             SuspendLayout();
             // 
@@ -167,7 +168,7 @@
             // 
             // mnuHelp
             // 
-            mnuHelp.DropDownItems.AddRange(new ToolStripItem[] { mnuAbout, mnuEncoders });
+            mnuHelp.DropDownItems.AddRange(new ToolStripItem[] { mnuAbout, mnuEncoders, mnuShowMetadata });
             mnuHelp.Name = "mnuHelp";
             mnuHelp.Size = new Size(55, 24);
             mnuHelp.Text = "Help";
@@ -175,14 +176,20 @@
             // mnuAbout
             // 
             mnuAbout.Name = "mnuAbout";
-            mnuAbout.Size = new Size(218, 26);
+            mnuAbout.Size = new Size(224, 26);
             mnuAbout.Text = "About";
             // 
             // mnuEncoders
             // 
             mnuEncoders.Name = "mnuEncoders";
-            mnuEncoders.Size = new Size(218, 26);
+            mnuEncoders.Size = new Size(224, 26);
             mnuEncoders.Text = "Available Encoders";
+            // 
+            // mnuShowMetadata
+            // 
+            mnuShowMetadata.Name = "mnuShowMetadata";
+            mnuShowMetadata.Size = new Size(224, 26);
+            mnuShowMetadata.Text = "Show File Metadata";
             // 
             // ConverterMainForm
             // 
@@ -226,5 +233,6 @@
         private ToolStripMenuItem mnuEncoders;
         private ToolStripMenuItem mnuOptions;
         private ToolStripMenuItem mnuBitrate;
+        private ToolStripMenuItem mnuShowMetadata;
     }
 }
