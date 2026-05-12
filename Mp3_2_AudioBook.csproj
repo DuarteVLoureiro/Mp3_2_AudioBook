@@ -13,4 +13,10 @@
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="ffmpeg.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

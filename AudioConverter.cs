@@ -2,10 +2,18 @@
 using NAudio.Wave;
 using NAudio.MediaFoundation;
 using System.IO;
+using Mp3_2_AudioBook;
 
 internal class AudioConverter
 {
-	public void Convert(string inputFilePath, string outputFilePath, int bitrate = 128000, IProgress<int> conversionProgress = null, CancellationToken cancellation = default)
+
+    private static readonly int[] validBitrateVal =
+        {
+    32000, 48000, 64000, 80000, 96000, 112000,
+    128000, 160000, 192000, 256000, 320000
+        };
+
+    public void Convert(string inputFilePath, string outputFilePath, int bitrate = 128000, IProgress<int> conversionProgress = null, CancellationToken cancellation = default, MetadataHandler.AudioMetadata metadata = null)
 	{
 		if (!File.Exists(inputFilePath)) 
 		{
@@ -15,7 +23,6 @@ internal class AudioConverter
 		{
 			throw new FileFormatException(Path.GetExtension(inputFilePath) + " is not an accepted file format");
 		}
-		int[] validBitrateVal = { 64000, 96000, 128000, 192000, 256000 };
 		if (!validBitrateVal.Contains(bitrate)) 
 		{
 			throw new ArgumentException("Invalid bitrate value: " + bitrate);
@@ -27,8 +34,7 @@ internal class AudioConverter
 				long totalFileBytes = byteReader.Length;
 				long bytesRead = 0;
 				int lastReported = -1;
-
-				// check if resample is needed ( audio is not in standard format
+				// check if resample is needed ( audio is not in standard format )
 				bool needsResample = byteReader.WaveFormat.SampleRate != 44100 || byteReader.WaveFormat.Channels != 2;
 				IWaveProvider sourceStream;
 				if (needsResample)
@@ -58,6 +64,11 @@ internal class AudioConverter
 				{
 					disposable.Dispose();
 				}
+                //Write metadata
+                if (metadata != null)
+                {
+                    MetadataHandler.WriteMetadata(outputFilePath, metadata);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -67,7 +78,6 @@ internal class AudioConverter
         catch ( Exception ex)
 		{
             throw new InvalidOperationException($"Conversion failed: "+ ex.Message, ex);
-
         }
     }
     public static string[] GetAvailableEncoders()
@@ -90,42 +100,47 @@ internal class AudioConverter
         }
         return encoders.ToArray();
     }
-}
 
+    public static int SnapToValidBitrate(int requestedBitrate)
+    {
+        return validBitrateVal.OrderBy(b => Math.Abs(b - requestedBitrate)).First();
+    }
+}
 internal class ProgressBarStream : WaveStream
 {
     private readonly IWaveProvider _sourceStream;
     private readonly WaveStream _lengthSource;
-    private readonly long _totalBytes;
-	private readonly IProgress<int> _progress;
+    private readonly IProgress<int> _progress;
     private readonly CancellationToken _cancellationToken;
 
     public ProgressBarStream(IWaveProvider sourceStream, WaveStream lengthSource, IProgress<int> progress, CancellationToken cancellationToken)
     {
         _sourceStream = sourceStream;
         _lengthSource = lengthSource;
-        _totalBytes = lengthSource.Length;
         _progress = progress;
         _cancellationToken = cancellationToken;
     }
+
     public override WaveFormat WaveFormat => _sourceStream.WaveFormat;
-	public override long Length => _totalBytes;
-    public override long Position 
-	{
+    public override long Length => _lengthSource.Length;
+
+    public override long Position
+    {
         get => _lengthSource.Position;
-        set => _lengthSource.Position = value;
+        set { /* intentionally ignored — encoder can seek but we don't relay it */ }
     }
+
     public override int Read(byte[] buffer, int offset, int count)
     {
         _cancellationToken.ThrowIfCancellationRequested();
-        int bytesAlreadyRead = _sourceStream.Read(buffer, offset, count);
+        int bytesRead = _sourceStream.Read(buffer, offset, count);
 
-		if (_progress != null && _totalBytes > 0)
-		{
-            int completePercentage = (int)((_lengthSource.Position * 100L) / _totalBytes);
-            _progress.Report(completePercentage);
-		}
+        if (_progress != null && _lengthSource.Length > 0)
+        {
+            int percent = (int)((_lengthSource.Position * 100L) / _lengthSource.Length);
+            _progress.Report(percent);
+        }
 
-		return bytesAlreadyRead;
+        return bytesRead;
     }
 }

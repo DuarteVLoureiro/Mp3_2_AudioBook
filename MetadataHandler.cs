@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using TagLib;
 using TagLib.Id3v2;
+using System.Diagnostics;
 
 namespace Mp3_2_AudioBook
 {
@@ -61,7 +62,13 @@ namespace Mp3_2_AudioBook
 
                 return metadata;
         }
-
+        public static int ReadBitrate(string InputFilePath)
+        {
+            using (var file = TagLib.File.Create(InputFilePath))
+            {
+                return file.Properties.AudioBitrate;
+            }
+        }
         private static string GetChapterTitle(TagLib.Id3v2.ChapterFrame Frame)
         {
             var embedFrames = Frame.SubFrames;
@@ -81,5 +88,93 @@ namespace Mp3_2_AudioBook
             }
             return "Untitle Chapter";
         }
+        public static void WriteMetadata(string filePath, AudioMetadata metadata)
+        {
+            // Write chapters to MP4
+            WriteChaptersToMp4File(filePath, metadata.Chapters);
+            using (var file = TagLib.File.Create(filePath))
+            {
+                file.Tag.Title = metadata.Title;
+                file.Tag.Album = metadata.Title;
+                file.Tag.Performers = new[] { metadata.Author }; 
+                file.Tag.AlbumArtists = new[] { metadata.Author };
+                file.Tag.Year = metadata.ReleaseYear;
+                file.Tag.Genres = new[] { "Audiobook" };
+
+                if (metadata.Cover != null)
+                {
+                    file.Tag.Pictures = new IPicture[] { metadata.Cover };
+                }
+                file.Save();
+            }
+        }
+        public static string GetFFmpegPath()
+        {
+            //get path to ffmpeg,exe in the app folder
+            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+            if (!System.IO.File.Exists(ffmpegPath))
+            {
+                throw new FileNotFoundException("FFmpeg not found");
+            }
+            return ffmpegPath;
+        }
+        public static void WriteChaptersToMp4File(string file, List<Chapter> chapters)
+        {
+            if (chapters == null || chapters.Count == 0) return;
+
+            string tempOutput = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".m4b");
+
+            try
+            {
+                var metadata = new System.Text.StringBuilder();
+                metadata.AppendLine(";FFMETADATA1");
+                foreach (var chapter in chapters)
+                {
+                    metadata.AppendLine("[CHAPTER]");
+                    metadata.AppendLine("TIMEBASE=1/1000");
+                    metadata.AppendLine("START=" + chapter.StartTime);
+                    metadata.AppendLine("END=" + chapter.EndTime);
+                    metadata.AppendLine("title=" + chapter.Title);
+                }
+                var processInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = GetFFmpegPath(),
+                    Arguments = $"-i \"{file}\" -f ffmetadata -i pipe:0 " +
+                                $"-map 0:a " +
+                                $"-map 0:v? " +
+                                $"-map_metadata 1 " +
+                                $"-map_chapters 1 " +
+                                $"-codec copy " +
+                                $"-disposition:v attached_pic " +
+                                $"\"{tempOutput}\"",
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                using (var process = System.Diagnostics.Process.Start(processInfo))
+                {
+                    process.StandardInput.Write(metadata.ToString());
+                    process.StandardInput.Close();
+
+                    string stderr = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (process.ExitCode != 0)
+                        throw new InvalidOperationException(
+                            $"FFmpeg failed with exit code {process.ExitCode}. Error: {stderr}");
+
+                    System.IO.File.Delete(file);
+                    System.IO.File.Move(tempOutput, file);
+                }
+            }
+            finally
+            {
+                if (System.IO.File.Exists(tempOutput))
+                    System.IO.File.Delete(tempOutput);
+            }
+        }
     }
 }
+

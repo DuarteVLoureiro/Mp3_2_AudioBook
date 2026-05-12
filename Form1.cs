@@ -27,7 +27,7 @@ namespace Mp3_2_AudioBook
     ("192 kbps (High)",     192_000),
     ("256 kbps (Ultra)",    256_000),
 };
-        private const int DefaultBitrateIndex = 1;
+        private const int DefaultBitrateIndex = 2;
         private int selectedBitrate = BitrateOptions[DefaultBitrateIndex].Value;
         private CancellationTokenSource cancellationTokenSource = null;
         public ConverterMainForm()
@@ -87,6 +87,13 @@ namespace Mp3_2_AudioBook
             btnCancel.Visible = false;
             btnConvert.Visible = false;
             mnuShowMetadata.Enabled = false;
+            mnuShowBitrate.Enabled = false;
+            mnuShowBitrate.ToolTipText = "Select file to enable";
+            // Reset bitrate if checked
+            foreach (ToolStripItem item in mnuBitrate.DropDownItems)
+            {
+                if (item is ToolStripMenuItem menuItem) menuItem.Checked = false;
+            }
         }
         private void SetupButtons()
         {
@@ -96,10 +103,6 @@ namespace Mp3_2_AudioBook
             btnSelectFile.Click += SelectFile_Click;
             btnCancel.Click += btnCancel_Click;
             btnConvert.Click += BtnConvert_Click;
-            mnuOpen.Click += SelectFile_Click;
-            mnuEncoders.Click += mnuEncoders_Click;
-            mnuExit.Click += (s, e) => Application.Exit(); // Simple one-line exit
-            mnuShowMetadata.Click += MnuShowMetadata_click;
         }
         private void ConfigureButtonStart(Button btn, int width, int height, int x, int y, string text, Boolean visibility = false)
         {
@@ -119,12 +122,16 @@ namespace Mp3_2_AudioBook
             lblStatus.Visible = false;
             lblStatus.Size = new Size(DropZoneWidth, 20);
             //lblStatus.Location = new Point(CenterX - DropZoneWidth / 2, 310);
-            lblStatus.Location = new Point(CenterX - DropZoneWidth / 2, 192);
+            lblStatus.Location = new Point(CenterX - DropZoneWidth / 2, 190);
             lblStatus.TextAlign = ContentAlignment.MiddleLeft;
             lblStatus.Text = string.Empty;
         }
         private void SetupMenuButtons()
         {
+            mnuOpen.Click += SelectFile_Click;
+            mnuEncoders.Click += mnuEncoders_Click;
+            mnuExit.Click += (s, e) => Application.Exit(); // Simple one-line exit
+            mnuShowMetadata.Click += MnuShowMetadata_click;
             foreach (var (label, value) in BitrateOptions)
             {
                 // Setup bitrate Options
@@ -134,11 +141,41 @@ namespace Mp3_2_AudioBook
                 item.Click += BitrateItem_Click;
                 mnuBitrate.DropDownItems.Add(item);
             }
-            ((ToolStripMenuItem)mnuBitrate.DropDownItems[DefaultBitrateIndex]).Checked = true; // Default
+            //((ToolStripMenuItem)mnuBitrate.DropDownItems[DefaultBitrateIndex]).Checked = true; // Default
 
-            // Setup Metadata menu
+            // Setup menu
             mnuShowMetadata.Enabled = false;
             mnuShowMetadata.ToolTipText = "Select file to enable";
+            mnuShowBitrate.ToolTipText = "Select file to enable";
+            mnuShowBitrate.Enabled = false;
+            mnuShowBitrate.Click += MnuShowBitrate_Click;
+        }
+        private void MnuShowBitrate_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(selectedFilePath))
+            {
+                MessageBox.Show("Select MP3 file to verify bitrate", "No file selected",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            else
+            {
+                try
+            {
+                int bitrate = MetadataHandler.ReadBitrate(selectedFilePath);
+                int bitrateHz = bitrate * 1000;
+                var result = MessageBox.Show(
+                    $"MP3 bitrate: {bitrate} kbps",
+                    "File Bitrate",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not read bitrate: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            }
         }
         private void LblDrop_Paint(object sender, PaintEventArgs e)
         {
@@ -191,10 +228,25 @@ namespace Mp3_2_AudioBook
             selectedFilePath = file;
             lblDrop.Text = "File is ready to convert";
             lblFileName.Text = ProcessFileName(file, 30);
+            lblFileName.Visible = true;
             btnSelectFile.Visible = false;
             btnConvert.Visible = true;
             btnCancel.Visible = true;
             mnuShowMetadata.Enabled = true;
+            mnuShowBitrate.Enabled = true;
+            try
+            {
+                selectedBitrate = AudioConverter.SnapToValidBitrate(MetadataHandler.ReadBitrate(selectedFilePath)*1000);
+                mnuShowBitrate.ToolTipText = "Closest Value to file for conversion: " + selectedBitrate;
+                foreach (ToolStripItem item in mnuBitrate.DropDownItems)
+                {
+                    if (item is ToolStripMenuItem menuItem) menuItem.Checked = false;
+                }
+            }
+            catch
+            {
+                mnuShowBitrate.ToolTipText = "Default value will be used ( can not find bitrate in file ): " + selectedBitrate;
+            }
         }
         private void SelectFile_Click(object sender, EventArgs e)
         {
@@ -220,12 +272,14 @@ namespace Mp3_2_AudioBook
         }
         private async void BtnConvert_Click(object sender, EventArgs e)
         {
+            //MessageBox.Show("Bitrate currently used" + selectedBitrate, "bitrate", MessageBoxButtons.OK, MessageBoxIcon.Information);
             if (string.IsNullOrEmpty(selectedFilePath))
             {
                 MessageBox.Show("No file selected.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            string outputPath = Path.ChangeExtension(selectedFilePath, ".m4a");
+            string outputPath = Path.ChangeExtension(selectedFilePath, ".m4b");
+            string tempM4aPath = Path.ChangeExtension(selectedFilePath, ".m4a");
             if (File.Exists(outputPath))
             {
                 var result = MessageBox.Show(
@@ -245,23 +299,36 @@ namespace Mp3_2_AudioBook
             cancellationTokenSource = new CancellationTokenSource();
             try
             {
+                var metadata = MetadataHandler.ReadMetadata(selectedFilePath);
                 await Task.Run(() =>
                 {
-                    converter.Convert(selectedFilePath, outputPath, selectedBitrate, progress, cancellationTokenSource.Token);
+                    converter.Convert(selectedFilePath, tempM4aPath, selectedBitrate, progress, cancellationTokenSource.Token, metadata);
                 }, cancellationTokenSource.Token);
+                DotAnimation.StopDotAnimation();
+
+                if (File.Exists(outputPath))
+                {
+                    File.Delete(outputPath);
+                }
+                File.Move(tempM4aPath, outputPath);
+
                 lblStatus.Text = "File is ready";
                 MessageBox.Show("Conversion was completed sucessfully!", "Great Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (OperationCanceledException)
             {
                 MessageBox.Show("Conversion cancelled", "Cancelled", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                if (File.Exists(outputPath))
+                if (File.Exists(tempM4aPath))
                 {
-                    try { File.Delete(outputPath); } catch { /* ignore if still locked */ }
+                    try { File.Delete(tempM4aPath); } catch { /* ignore if still locked */ }
                 }
             }
             catch (Exception ex)
             {
+                if (File.Exists(tempM4aPath))
+                {
+                    File.Delete(tempM4aPath);
+                }
                 MessageBox.Show("Conversion Failed" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
@@ -283,6 +350,7 @@ namespace Mp3_2_AudioBook
             }
             clickedItem.Checked = true;
             selectedBitrate = (int)clickedItem.Tag;
+            mnuShowBitrate.ToolTipText = "Bitrate value chosen for conversion: " + selectedBitrate;
         }
         private void MnuShowMetadata_click(object sender, EventArgs e)
         {
@@ -326,10 +394,16 @@ namespace Mp3_2_AudioBook
             lblDrop.Visible = false;
             lblDrop.Text = string.Empty;
             lblFileName .Visible = false;
+            int _lastPercent = 0;
+
+            DotAnimation.StartDotAnimation(() => $"Converting file{new string('.', DotAnimation._dotCount)} {_lastPercent}%",lblStatus);
+
             var progress = new Progress<int>(percent =>
             {
+                _lastPercent = percent;
                 progressBar.Value = percent;
-                lblStatus.Text = "Converting file..." + percent.ToString() + "%";
+                //lblStatus.Text = "Converting file..." + percent.ToString() + "%";
+                lblStatus.Text = $"Converting file{new string('.', DotAnimation._dotCount)} {percent}%";
             });
             return progress;
         }
