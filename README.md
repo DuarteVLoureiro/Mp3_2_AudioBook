@@ -4,17 +4,12 @@ A lightweight Windows desktop tool that converts MP3 files to M4A format for aud
 
 ## Features
 
-- Drag and drop or browse to select an MP3 file
-- Converts to `.m4a` with AAC encoding
-- Selectable bitrate: 64, 96, 128, 192, or 256 kbps
-- Cancellable conversion
-- Progress tracking during conversion
+- Convert Mp3 files into Audiobook format (m4b)
 
 ## Requirements
 
 - Windows 7 or later
 - [.NET 8.0 Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
-- NAudio (included via NuGet, no manual install needed)
 
 ## How to Use
 
@@ -22,7 +17,7 @@ A lightweight Windows desktop tool that converts MP3 files to M4A format for aud
 2. Drag and drop an MP3 file onto the drop zone, or click **Select File**
 3. Optionally change the bitrate via the menu
 4. Click **Convert**
-5. The output `.m4a` file is saved in the same folder as the original MP3
+5. The output `.m4b` file is saved in the same folder as the original MP3
 
 ## Building from Source
 
@@ -34,7 +29,5 @@ A lightweight Windows desktop tool that converts MP3 files to M4A format for aud
 ## Dependencies
 
 - [NAudio](https://github.com/naudio/NAudio) — audio reading, resampling, and MediaFoundation encoding
-
-## License
-
-To be decided.
+- TagLib
+- ffmpeg
